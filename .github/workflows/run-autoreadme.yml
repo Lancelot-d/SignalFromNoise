@@ -1,4 +1,4 @@
-name: Run AutoREADME
+name: Run SignalFromNoise Build Opportunity Analyzer
 
 on:
   schedule:
