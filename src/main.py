@@ -4,6 +4,7 @@ from config import Config
 from llm_client import LLMClient
 from email_client import EmailClient
 from reddit_scraper import fetch_posts_from_subreddits
+import random
 
 
 class BuildOpportunityAnalyzer:
@@ -34,13 +35,17 @@ class BuildOpportunityAnalyzer:
             posts_per_subreddit=self.config.posts_per_subreddit
         )
         
+        # Shuffle posts for variety
+        random.shuffle(posts)
+        print(f"📊 Found {len(posts)} posts (shuffled for variety)")
+        
         if not posts:
             print("⚠️  No posts found. Exiting.")
             return
         
         # Analyze opportunities
         print("🤖 Analyzing build opportunities...")
-        analysis = self.llm_client.analyze_build_opportunity(posts)
+        analysis = self.llm_client.analyze_build_opportunity(posts=posts, max_posts=10)
         print("✅ Analysis complete\n")
         
         # Send email

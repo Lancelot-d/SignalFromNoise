@@ -31,7 +31,15 @@ class RandomUserAgentSession(Session):
     """Session that uses random user agents for requests."""
 
     def request(self, *args, **kwargs) -> requests.Response:
-        self.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+        self.headers.update({
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "DNT": "1",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1"
+        })
         return super().request(*args, **kwargs)
 
 
@@ -223,6 +231,7 @@ def fetch_posts_from_subreddits(
     all_posts = []
     
     for subreddit in subreddits:
+        time.sleep(random.uniform(5, 20))
         try:
             posts = scraper.fetch_subreddit_posts(
                 subreddit=subreddit,
@@ -250,5 +259,6 @@ def fetch_posts_from_subreddits(
             print(f"✅ Fetched {len(posts)} posts from r/{subreddit}")
         except Exception as e:
             print(f"❌ Error fetching from r/{subreddit}: {e}")
-    
+            return all_posts
+        
     return all_posts
