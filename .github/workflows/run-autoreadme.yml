@@ -12,7 +12,7 @@ on:
       - main
 
 jobs:
-  update-readme:
+  run-build-opportunity-analyzer:
     runs-on: ubuntu-latest
     
     steps:
