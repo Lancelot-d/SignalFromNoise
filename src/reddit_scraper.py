@@ -104,8 +104,12 @@ class RedditScraper:
                 data = self._make_request(url)
                 LOGGER.info("Successfully fetched batch from r/%s", subreddit)
             except Exception as e:
-                LOGGER.error("Failed to fetch posts from r/%s: %s", subreddit, e)
-                print(f"Error fetching posts from r/{subreddit}: {e}")
+                LOGGER.error("Failed to fetch posts from r/%s: %s", subreddit, e, exc_info=True)
+                print(f"❌ Error fetching posts from r/{subreddit}:")
+                print(f"   Type: {type(e).__name__}")
+                print(f"   Message: {e}")
+                print(f"   URL: {url}")
+                print(f"   Category: {category}, Limit: {batch_size}, Time filter: {time_filter}")
                 break
 
             posts = data.get("data", {}).get("children", [])
@@ -157,8 +161,12 @@ class RedditScraper:
             post_data = self._make_request(url)
             LOGGER.info("Successfully fetched post details: %s", permalink)
         except Exception as e:
-            LOGGER.error("Failed to fetch post details %s: %s", permalink, e)
-            print(f"Error fetching post details: {e}")
+            LOGGER.error("Failed to fetch post details %s: %s", permalink, e, exc_info=True)
+            print(f"❌ Error fetching post details:")
+            print(f"   Type: {type(e).__name__}")
+            print(f"   Message: {e}")
+            print(f"   Permalink: {permalink}")
+            print(f"   URL: {url}")
             return None
         
         if not isinstance(post_data, list) or len(post_data) < 2:
@@ -261,13 +269,20 @@ def fetch_posts_from_subreddits(
                         else:
                             post['top_comments'] = []
                     except Exception as e:
-                        print(f"   ⚠️  Failed to fetch comments for post: {e}")
+                        print(f"   ⚠️  Failed to fetch comments for post: {type(e).__name__}: {e}")
+                        print(f"      Post: {post.get('title', 'Unknown')[:50]}...")
+                        print(f"      Permalink: {post.get('permalink', 'Unknown')}")
                         post['top_comments'] = []
             
             all_posts.extend(posts)
             print(f"✅ Fetched {len(posts)} posts from r/{subreddit}")
         except Exception as e:
-            print(f"❌ Error fetching from r/{subreddit}: {e}")
+            print(f"❌ Error fetching from r/{subreddit}:")
+            print(f"   Type: {type(e).__name__}")
+            print(f"   Message: {e}")
+            print(f"   Category: {category}, Time filter: {time_filter}")
+            print(f"   Posts per subreddit: {posts_per_subreddit}")
+            LOGGER.error("Failed to fetch from r/%s: %s", subreddit, e, exc_info=True)
             return all_posts
         
     return all_posts
