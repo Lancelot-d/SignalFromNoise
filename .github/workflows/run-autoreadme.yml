@@ -40,5 +40,6 @@ jobs:
           SUBREDDITS: ${{ secrets.SUBREDDITS }}
           TIME_FILTER: ${{ secrets.TIME_FILTER }}
           POSTS_PER_SUBREDDIT: ${{ secrets.POSTS_PER_SUBREDDIT }}
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
         run: |
           python src/main.py
