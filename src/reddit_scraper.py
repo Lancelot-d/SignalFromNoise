@@ -3,11 +3,12 @@
 import time
 import random
 import logging
+import json
+import ssl
+import urllib.request
+import urllib.parse
 from typing import Any
-import requests
-from requests import Session
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from urllib.error import HTTPError, URLError
 
 # Configure logging
 logging.basicConfig(
@@ -27,36 +28,47 @@ USER_AGENTS = (
 )
 
 
-class RandomUserAgentSession(Session):
-    """Session that uses random user agents for requests."""
-
-    def request(self, *args, **kwargs) -> requests.Response:
-        self.headers.update({
-            "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1"
-        })
-        return super().request(*args, **kwargs)
-
-
 class RedditScraper:
     """Reddit scraper using Reddit's JSON API."""
 
-    def __init__(self, timeout: int = 10, random_user_agent: bool = True) -> None:
-        self.session = RandomUserAgentSession() if random_user_agent else requests.Session()
+    def __init__(self, proxy: str = "", timeout: int = 10, random_user_agent: bool = True) -> None:
         self.timeout = timeout
+        self.random_user_agent = random_user_agent
+        self.proxy = proxy
         
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        self.session.mount("https://", adapter)
+        # Create opener with proxy configuration if proxy is provided
+        if proxy:
+            self.opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({'https': proxy, 'http': proxy}),
+                urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
+            )
+        else:
+            self.opener = urllib.request.build_opener(
+                urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
+            )
+    
+    def _make_request(self, url: str, max_retries: int = 3) -> dict:
+        """Make a request with retries and random user agent."""
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS) if self.random_user_agent else USER_AGENTS[0],
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        
+        req = urllib.request.Request(url, headers=headers)
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.opener.open(req, timeout=self.timeout)
+                content = response.read().decode('utf-8')
+                return json.loads(content)
+            except (HTTPError, URLError) as e:
+                LOGGER.warning("Request attempt %d/%d failed: %s", attempt + 1, max_retries, e)
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(2 ** attempt)  # Exponential backoff
+        
+        raise Exception("Max retries exceeded")
 
     def fetch_subreddit_posts(
         self,
@@ -76,7 +88,7 @@ class RedditScraper:
         total_fetched = 0
         after = None
         all_posts = []
-        url = f"https://www.reddit.com/r/{subreddit}/{category}.json"
+        base_url = f"https://www.reddit.com/r/{subreddit}/{category}.json"
 
         while total_fetched < limit:
             params = {
@@ -85,17 +97,17 @@ class RedditScraper:
                 "raw_json": 1,
                 "t": time_filter,
             }
+            
+            url = base_url + "?" + urllib.parse.urlencode(params)
 
             try:
-                response = self.session.get(url, timeout=self.timeout, params=params)
-                response.raise_for_status()
+                data = self._make_request(url)
                 LOGGER.info("Successfully fetched batch from r/%s", subreddit)
-            except requests.RequestException as e:
+            except Exception as e:
                 LOGGER.error("Failed to fetch posts from r/%s: %s", subreddit, e)
                 print(f"Error fetching posts from r/{subreddit}: {e}")
                 break
 
-            data = response.json()
             posts = data.get("data", {}).get("children", [])
             
             if not posts:
@@ -142,15 +154,12 @@ class RedditScraper:
         url = f"https://www.reddit.com{permalink}.json"
         
         try:
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
+            post_data = self._make_request(url)
             LOGGER.info("Successfully fetched post details: %s", permalink)
-        except requests.RequestException as e:
+        except Exception as e:
             LOGGER.error("Failed to fetch post details %s: %s", permalink, e)
             print(f"Error fetching post details: {e}")
             return None
-
-        post_data = response.json()
         
         if not isinstance(post_data, list) or len(post_data) < 2:
             LOGGER.warning("Unexpected post data structure for %s", permalink)
@@ -224,14 +233,14 @@ def fetch_posts_from_subreddits(
     time_filter: str = "day",
     posts_per_subreddit: int = 10,
     include_comments: bool = True,
-    max_comments_per_post: int = 10
+    max_comments_per_post: int = 10,
+    proxy: str = ""
 ) -> list[dict]:
     """Fetch posts from multiple subreddits."""
-    scraper = RedditScraper()
+    scraper = RedditScraper(proxy=proxy)
     all_posts = []
     
     for subreddit in subreddits:
-        time.sleep(random.uniform(5, 20))
         try:
             posts = scraper.fetch_subreddit_posts(
                 subreddit=subreddit,

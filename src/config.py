@@ -16,6 +16,7 @@ class Config:
     sender_email: str
     sender_password: str
     recipient_emails: List[str]
+    proxy: str = ""
     time_filter: str = "day"  # Options: 'hour', 'day', 'week', 'month', 'year', 'all'
     posts_per_subreddit: int = 10
     
@@ -47,6 +48,9 @@ class Config:
         recipient_emails_str = os.getenv("RECIPIENT_EMAILS")
         recipient_emails = [email.strip() for email in recipient_emails_str.split(",")] if recipient_emails_str else []
         
+        # Proxy configuration
+        proxy = os.getenv("PROXY", "")
+        
         # Optional settings
         time_filter = os.getenv("TIME_FILTER", "day")
         posts_per_subreddit = int(os.getenv("POSTS_PER_SUBREDDIT", "10"))
@@ -69,6 +73,7 @@ class Config:
             sender_email=sender_email,
             sender_password=sender_password,
             recipient_emails=recipient_emails,
+            proxy=proxy,
             time_filter=time_filter,
             posts_per_subreddit=posts_per_subreddit
         )
