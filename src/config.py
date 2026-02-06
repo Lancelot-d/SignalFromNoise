@@ -16,9 +16,8 @@ class Config:
     sender_email: str
     sender_password: str
     recipient_emails: List[str]
-    proxy: str = ""
-    verify_ssl: bool = True
-    time_filter: str = "day"  # Options: 'hour', 'day', 'week', 'month', 'year', 'all'
+    brightdata_api_key: str
+    time_filter: str = "day"
     posts_per_subreddit: int = 10
     
     @classmethod
@@ -49,11 +48,8 @@ class Config:
         recipient_emails_str = os.getenv("RECIPIENT_EMAILS")
         recipient_emails = [email.strip() for email in recipient_emails_str.split(",")] if recipient_emails_str else []
         
-        # Proxy configuration
-        proxy = os.getenv("PROXY", "")
-        
-        # SSL verification (set to False if behind corporate proxy)
-        verify_ssl = os.getenv("VERIFY_SSL", "false").lower() == "true"
+        # Bright Data API key (required)
+        brightdata_api_key = os.getenv("BRIGHTDATA_API_KEY")
         
         # Optional settings
         time_filter = os.getenv("TIME_FILTER", "day")
@@ -68,6 +64,8 @@ class Config:
             raise ValueError("SENDER_PASSWORD environment variable is required")
         if not recipient_emails:
             raise ValueError("RECIPIENT_EMAILS environment variable is required")
+        if not brightdata_api_key:
+            raise ValueError("BRIGHTDATA_API_KEY environment variable is required")
         
         return cls(
             subreddits=subreddits,
@@ -77,8 +75,7 @@ class Config:
             sender_email=sender_email,
             sender_password=sender_password,
             recipient_emails=recipient_emails,
-            proxy=proxy,
-            verify_ssl=verify_ssl,
+            brightdata_api_key=brightdata_api_key,
             time_filter=time_filter,
             posts_per_subreddit=posts_per_subreddit
         )

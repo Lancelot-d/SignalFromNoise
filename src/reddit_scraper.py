@@ -1,14 +1,11 @@
-"""Reddit scraper for fetching posts and comments."""
+"""Reddit scraper using Bright Data Web Unlocker API."""
 
 import time
 import random
 import logging
+import urllib.parse
 from typing import Any
 import requests
-import urllib3
-
-# Disable SSL warnings when verification is disabled
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configure logging
 logging.basicConfig(
@@ -18,49 +15,56 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger(__name__)
 
-# User agents for requests
-USER_AGENTS = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-)
-
 
 class RedditScraper:
-    """Reddit scraper using Reddit's JSON API."""
+    """Reddit scraper using Bright Data Web Unlocker API."""
 
-    def __init__(self, proxy: str = "", timeout: int = 10, random_user_agent: bool = True, verify_ssl: bool = True) -> None:
-        self.timeout = timeout
-        self.random_user_agent = random_user_agent
-        self.verify_ssl = verify_ssl
-        self.session = requests.Session()
+    def __init__(self, brightdata_api_key: str, timeout: int = 30) -> None:
+        if not brightdata_api_key:
+            raise ValueError("BRIGHTDATA_API_KEY is required")
         
-        if proxy:
-            self.session.proxies = {
-                'http': proxy,
-                'https': proxy
-            }
+        self.brightdata_api_key = brightdata_api_key
+        self.timeout = timeout
+        LOGGER.info("Initialized with Bright Data Web Unlocker")
+        print("🌐 Using Bright Data Web Unlocker API")
     
     def _make_request(self, url: str, params: dict = None, max_retries: int = 3) -> dict:
-        """Make a request with retries and random user agent."""
+        """Make a request using Bright Data Web Unlocker API."""
+        # Build full URL with params
+        if params:
+            clean_params = {k: v for k, v in params.items() if v is not None}
+            param_string = urllib.parse.urlencode(clean_params)
+            full_url = f"{url}?{param_string}"
+        else:
+            full_url = url
+        
         headers = {
-            "User-Agent": random.choice(USER_AGENTS) if self.random_user_agent else USER_AGENTS[0],
-            "Accept": "application/json",
-            "Accept-Language": "en-US,en;q=0.9",
+            "Authorization": f"Bearer {self.brightdata_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "zone": "web_unlocker1",
+            "url": full_url,
+            "format": "raw"
         }
         
         for attempt in range(max_retries):
             try:
-                response = self.session.get(url, headers=headers, params=params, timeout=self.timeout, verify=self.verify_ssl)
+                response = requests.post(
+                    "https://api.brightdata.com/request",
+                    json=data,
+                    headers=headers,
+                    timeout=self.timeout
+                )
                 response.raise_for_status()
                 return response.json()
+                    
             except requests.exceptions.RequestException as e:
                 LOGGER.warning("Request attempt %d/%d failed: %s", attempt + 1, max_retries, e)
                 if attempt == max_retries - 1:
                     raise
-                time.sleep(2 ** attempt)  # Exponential backoff
+                time.sleep(2 ** attempt)
         
         raise Exception("Max retries exceeded")
 
@@ -100,8 +104,6 @@ class RedditScraper:
                 print(f"❌ Error fetching posts from r/{subreddit}:")
                 print(f"   Type: {type(e).__name__}")
                 print(f"   Message: {e}")
-                print(f"   URL: {base_url}")
-                print(f"   Category: {category}, Limit: {batch_size}, Time filter: {time_filter}")
                 break
 
             posts = data.get("data", {}).get("children", [])
@@ -154,11 +156,7 @@ class RedditScraper:
             LOGGER.info("Successfully fetched post details: %s", permalink)
         except Exception as e:
             LOGGER.error("Failed to fetch post details %s: %s", permalink, e, exc_info=True)
-            print(f"❌ Error fetching post details:")
-            print(f"   Type: {type(e).__name__}")
-            print(f"   Message: {e}")
-            print(f"   Permalink: {permalink}")
-            print(f"   URL: {url}")
+            print(f"❌ Error fetching post details: {type(e).__name__}: {e}")
             return None
         
         if not isinstance(post_data, list) or len(post_data) < 2:
@@ -229,16 +227,15 @@ def extract_all_comments_text(comments: list[dict]) -> list[str]:
 
 def fetch_posts_from_subreddits(
     subreddits: list[str],
+    brightdata_api_key: str,
     category: str = "hot",
     time_filter: str = "day",
     posts_per_subreddit: int = 10,
     include_comments: bool = True,
-    max_comments_per_post: int = 10,
-    proxy: str = "",
-    verify_ssl: bool = True
+    max_comments_per_post: int = 10
 ) -> list[dict]:
-    """Fetch posts from multiple subreddits."""
-    scraper = RedditScraper(proxy=proxy, verify_ssl=verify_ssl)
+    """Fetch posts from multiple subreddits using Bright Data."""
+    scraper = RedditScraper(brightdata_api_key=brightdata_api_key)
     all_posts = []
     
     for subreddit in subreddits:
@@ -262,20 +259,13 @@ def fetch_posts_from_subreddits(
                         else:
                             post['top_comments'] = []
                     except Exception as e:
-                        print(f"   ⚠️  Failed to fetch comments for post: {type(e).__name__}: {e}")
-                        print(f"      Post: {post.get('title', 'Unknown')[:50]}...")
-                        print(f"      Permalink: {post.get('permalink', 'Unknown')}")
+                        LOGGER.warning("Failed to fetch comments: %s", e)
                         post['top_comments'] = []
             
             all_posts.extend(posts)
             print(f"✅ Fetched {len(posts)} posts from r/{subreddit}")
         except Exception as e:
-            print(f"❌ Error fetching from r/{subreddit}:")
-            print(f"   Type: {type(e).__name__}")
-            print(f"   Message: {e}")
-            print(f"   Category: {category}, Time filter: {time_filter}")
-            print(f"   Posts per subreddit: {posts_per_subreddit}")
+            print(f"❌ Error fetching from r/{subreddit}: {type(e).__name__}: {e}")
             LOGGER.error("Failed to fetch from r/%s: %s", subreddit, e, exc_info=True)
-            return all_posts
         
     return all_posts

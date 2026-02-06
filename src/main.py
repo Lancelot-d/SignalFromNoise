@@ -30,11 +30,10 @@ class BuildOpportunityAnalyzer:
         print(f"\n🔍 Fetching from: {', '.join(f'r/{s}' for s in self.config.subreddits)}")
         posts = fetch_posts_from_subreddits(
             subreddits=self.config.subreddits,
+            brightdata_api_key=self.config.brightdata_api_key,
             category="top",
             time_filter=self.config.time_filter,
-            posts_per_subreddit=self.config.posts_per_subreddit,
-            proxy=self.config.proxy,
-            verify_ssl=self.config.verify_ssl
+            posts_per_subreddit=self.config.posts_per_subreddit
         )
         
         # Shuffle posts for variety
