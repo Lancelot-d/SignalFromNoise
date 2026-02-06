@@ -33,7 +33,8 @@ class BuildOpportunityAnalyzer:
             category="top",
             time_filter=self.config.time_filter,
             posts_per_subreddit=self.config.posts_per_subreddit,
-            proxy=self.config.proxy
+            proxy=self.config.proxy,
+            verify_ssl=self.config.verify_ssl
         )
         
         # Shuffle posts for variety

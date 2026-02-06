@@ -3,12 +3,12 @@
 import time
 import random
 import logging
-import json
-import ssl
-import urllib.request
-import urllib.parse
 from typing import Any
-from urllib.error import HTTPError, URLError
+import requests
+import urllib3
+
+# Disable SSL warnings when verification is disabled
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Configure logging
 logging.basicConfig(
@@ -31,23 +31,19 @@ USER_AGENTS = (
 class RedditScraper:
     """Reddit scraper using Reddit's JSON API."""
 
-    def __init__(self, proxy: str = "", timeout: int = 10, random_user_agent: bool = True) -> None:
+    def __init__(self, proxy: str = "", timeout: int = 10, random_user_agent: bool = True, verify_ssl: bool = True) -> None:
         self.timeout = timeout
         self.random_user_agent = random_user_agent
-        self.proxy = proxy
+        self.verify_ssl = verify_ssl
+        self.session = requests.Session()
         
-        # Create opener with proxy configuration if proxy is provided
         if proxy:
-            self.opener = urllib.request.build_opener(
-                urllib.request.ProxyHandler({'https': proxy, 'http': proxy}),
-                urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
-            )
-        else:
-            self.opener = urllib.request.build_opener(
-                urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
-            )
+            self.session.proxies = {
+                'http': proxy,
+                'https': proxy
+            }
     
-    def _make_request(self, url: str, max_retries: int = 3) -> dict:
+    def _make_request(self, url: str, params: dict = None, max_retries: int = 3) -> dict:
         """Make a request with retries and random user agent."""
         headers = {
             "User-Agent": random.choice(USER_AGENTS) if self.random_user_agent else USER_AGENTS[0],
@@ -55,14 +51,12 @@ class RedditScraper:
             "Accept-Language": "en-US,en;q=0.9",
         }
         
-        req = urllib.request.Request(url, headers=headers)
-        
         for attempt in range(max_retries):
             try:
-                response = self.opener.open(req, timeout=self.timeout)
-                content = response.read().decode('utf-8')
-                return json.loads(content)
-            except (HTTPError, URLError) as e:
+                response = self.session.get(url, headers=headers, params=params, timeout=self.timeout, verify=self.verify_ssl)
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as e:
                 LOGGER.warning("Request attempt %d/%d failed: %s", attempt + 1, max_retries, e)
                 if attempt == max_retries - 1:
                     raise
@@ -98,17 +92,15 @@ class RedditScraper:
                 "t": time_filter,
             }
             
-            url = base_url + "?" + urllib.parse.urlencode(params)
-
             try:
-                data = self._make_request(url)
+                data = self._make_request(base_url, params=params)
                 LOGGER.info("Successfully fetched batch from r/%s", subreddit)
             except Exception as e:
                 LOGGER.error("Failed to fetch posts from r/%s: %s", subreddit, e, exc_info=True)
                 print(f"❌ Error fetching posts from r/{subreddit}:")
                 print(f"   Type: {type(e).__name__}")
                 print(f"   Message: {e}")
-                print(f"   URL: {url}")
+                print(f"   URL: {base_url}")
                 print(f"   Category: {category}, Limit: {batch_size}, Time filter: {time_filter}")
                 break
 
@@ -242,10 +234,11 @@ def fetch_posts_from_subreddits(
     posts_per_subreddit: int = 10,
     include_comments: bool = True,
     max_comments_per_post: int = 10,
-    proxy: str = ""
+    proxy: str = "",
+    verify_ssl: bool = True
 ) -> list[dict]:
     """Fetch posts from multiple subreddits."""
-    scraper = RedditScraper(proxy=proxy)
+    scraper = RedditScraper(proxy=proxy, verify_ssl=verify_ssl)
     all_posts = []
     
     for subreddit in subreddits:

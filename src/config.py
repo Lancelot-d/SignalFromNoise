@@ -17,6 +17,7 @@ class Config:
     sender_password: str
     recipient_emails: List[str]
     proxy: str = ""
+    verify_ssl: bool = True
     time_filter: str = "day"  # Options: 'hour', 'day', 'week', 'month', 'year', 'all'
     posts_per_subreddit: int = 10
     
@@ -51,6 +52,9 @@ class Config:
         # Proxy configuration
         proxy = os.getenv("PROXY", "")
         
+        # SSL verification (set to False if behind corporate proxy)
+        verify_ssl = os.getenv("VERIFY_SSL", "false").lower() == "true"
+        
         # Optional settings
         time_filter = os.getenv("TIME_FILTER", "day")
         posts_per_subreddit = int(os.getenv("POSTS_PER_SUBREDDIT", "10"))
@@ -74,6 +78,7 @@ class Config:
             sender_password=sender_password,
             recipient_emails=recipient_emails,
             proxy=proxy,
+            verify_ssl=verify_ssl,
             time_filter=time_filter,
             posts_per_subreddit=posts_per_subreddit
         )
